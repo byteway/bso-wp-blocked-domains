@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: BSO Block Email Domains
-Plugin URI: https://byteway.eu/block-email-domains
+Plugin URI: https://byteway.eu/wp/disallowed-domains/
 Description: Blocks specific email domains during new user registration.
 Version: 1.0
 Author: Byteway Software Ontwikkeling
