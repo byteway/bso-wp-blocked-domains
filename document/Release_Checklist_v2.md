@@ -18,7 +18,7 @@
 
 - [x] Datamodel actief (create/drop lifecycle)
 - [x] Admin beheer werkt (add/edit/delete/search/paging)
-- [ ] Import flow werkt (incl. grote input)
+- [x] Import flow werkt (incl. grote input)
 - [x] Export CSV werkt
 - [x] Undo na delete werkt
 - [ ] Registratieblokkering werkt

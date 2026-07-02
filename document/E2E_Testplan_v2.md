@@ -55,16 +55,16 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Suite C - Import
 
-- [ ] C1 Import geldige regels
+- [x] C1 Import geldige regels
 : Voorbeeld: `alpha.nl`, `beta.com`
 : Verwacht: beide toegevoegd
-- [ ] C2 Import met ongeldige regels
+- [x] C2 Import met ongeldige regels
 : Voorbeeld: `bad domain`, `@domain`
 : Verwacht: ongeldige regels overgeslagen, geen fatale fout
-- [ ] C3 Import met duplicaten
+- [x] C3 Import met duplicaten
 : Voorbeeld: `alpha.nl` twee keer
 : Verwacht: slechts 1 record opgeslagen
-- [ ] C4 Grote import (min. 1000 regels)
+- [x] C4 Grote import (min. 1000 regels)
 : Verwacht: geen timeout, chunking verwerkt alles
 
 ## Suite D - Front-end validatie
@@ -96,9 +96,9 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Bevindingen
 
-- Open issues: geen voor Suite A en B
+- Open issues: geen voor Suite A t/m C
 - Opgeloste issues:
-- Rest-risico: handmatige validatie voor suites C t/m E nog open
+- Rest-risico: handmatige validatie voor suites D en E nog open
 
 ---
 
