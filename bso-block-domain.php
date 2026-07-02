@@ -20,6 +20,7 @@ define('BSO_PLUGIN_VERSION', '2.0.0');
 require_once BSO_PLUGIN_DIR . 'includes/class-bso-db.php';
 require_once BSO_PLUGIN_DIR . 'includes/domain-validation.php';
 require_once BSO_PLUGIN_DIR . 'includes/class-bso-domain-service.php';
+require_once BSO_PLUGIN_DIR . 'includes/frontend-ui.php';
 
 if (is_admin()) {
     require_once BSO_PLUGIN_DIR . 'admin/class-bso-admin-page.php';

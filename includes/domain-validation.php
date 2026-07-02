@@ -82,10 +82,15 @@ function bso_extract_domain_from_email($email) {
     return bso_normalize_domain($domain);
 }
 
+function bso_get_blocked_domain_error_message() {
+    $message = __('Registratie met dit e-maildomein is niet toegestaan. Gebruik een alternatief e-mailadres.', 'block-email-domains');
+    return apply_filters('bso_blocked_domain_error_message', $message);
+}
+
 function bso_add_blocked_domain_error($errors) {
     $errors->add(
         'blocked_email_domain',
-        __('Registratie met dit e-maildomein is niet toegestaan.', 'block-email-domains')
+        bso_get_blocked_domain_error_message()
     );
 }
 
