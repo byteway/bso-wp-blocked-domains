@@ -17,10 +17,10 @@
 ## Functionele dekking
 
 - [x] Datamodel actief (create/drop lifecycle)
-- [ ] Admin beheer werkt (add/edit/delete/search/paging)
+- [x] Admin beheer werkt (add/edit/delete/search/paging)
 - [ ] Import flow werkt (incl. grote input)
-- [ ] Export CSV werkt
-- [ ] Undo na delete werkt
+- [x] Export CSV werkt
+- [x] Undo na delete werkt
 - [ ] Registratieblokkering werkt
 - [ ] Profielupdateblokkering werkt
 - [ ] Shortcode `[bso_blocked_domain_info]` werkt

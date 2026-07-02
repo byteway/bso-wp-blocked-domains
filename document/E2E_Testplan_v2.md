@@ -29,27 +29,27 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Suite B - Admin UI beheer
 
-- [ ] B1 Pagina zichtbaar onder Instellingen > Block Email Domains
+- [x] B1 Pagina zichtbaar onder Instellingen > Block Email Domains
 : Verwacht: pagina opent zonder fout
-- [ ] B2 Domein toevoegen
+- [x] B2 Domein toevoegen
 : Input `test-1.nl`
 : Verwacht: succesmelding en domein zichtbaar in lijst
-- [ ] B3 Domein bewerken
+- [x] B3 Domein bewerken
 : Wijzig `test-1.nl` naar `test-2.nl`
 : Verwacht: succesmelding en nieuwe waarde in lijst
-- [ ] B4 Selectie verwijderen
+- [x] B4 Selectie verwijderen
 : Selecteer 1+ domeinen
 : Verwacht: domeinen verwijderd en undo zichtbaar
-- [ ] B5 Undo herstellen
+- [x] B5 Undo herstellen
 : Klik Ongedaan maken
 : Verwacht: verwijderde domeinen terug in lijst
-- [ ] B6 Zoekfilter
+- [x] B6 Zoekfilter
 : Zoek op deelstring
 : Verwacht: alleen matching records zichtbaar
-- [ ] B7 Paginagrootte opslaan
+- [x] B7 Paginagrootte opslaan
 : Zet op 10/50/100
 : Verwacht: paginatie past aan en blijft bewaard
-- [ ] B8 CSV export
+- [x] B8 CSV export
 : Exporteer huidige filter
 : Verwacht: geldig CSV met kolom `domain`
 
@@ -96,9 +96,9 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Bevindingen
 
-- Open issues: geen voor Suite A
+- Open issues: geen voor Suite A en B
 - Opgeloste issues:
-- Rest-risico: handmatige validatie voor suites B t/m E nog open
+- Rest-risico: handmatige validatie voor suites C t/m E nog open
 
 ---
 
