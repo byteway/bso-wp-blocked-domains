@@ -16,7 +16,7 @@
 
 ## Functionele dekking
 
-- [ ] Datamodel actief (create/drop lifecycle)
+- [x] Datamodel actief (create/drop lifecycle)
 - [ ] Admin beheer werkt (add/edit/delete/search/paging)
 - [ ] Import flow werkt (incl. grote input)
 - [ ] Export CSV werkt
@@ -34,8 +34,8 @@
 
 ## Documentatie
 
-- [ ] `document/v2.md` status bijgewerkt
-- [ ] `document/E2E_Testplan_v2.md` resultaten ingevuld
+- [x] `document/v2.md` status bijgewerkt
+- [x] `document/E2E_Testplan_v2.md` resultaten ingevuld
 - [ ] `document/Technical_Design.md` bijgewerkt indien architectuur wijzigde
 - [ ] `document/Functional_Design.md` bijgewerkt indien functionaliteit wijzigde
 

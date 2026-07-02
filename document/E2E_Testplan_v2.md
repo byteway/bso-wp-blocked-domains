@@ -13,18 +13,18 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Voorbereiding
 
-- [ ] Plugin geactiveerd
-- [ ] DB tabel aanwezig (`wp_bso_blocked_domains`)
+- [x] Plugin geactiveerd
+- [x] DB tabel aanwezig (`wp_bso_blocked_domains`)
 - [ ] Admin account met `manage_options`
 - [ ] WordPress registratie ingeschakeld
 
 ## Suite A - Datamodel en lifecycle
 
-- [ ] A1 Activatie maakt tabel aan
+- [x] A1 Activatie maakt tabel aan
 : Verwacht: tabel bestaat met `domain` unique key
-- [ ] A2 Deactivatie laat data bestaan
+- [x] A2 Deactivatie laat data bestaan
 : Verwacht: data blijft staan
-- [ ] A3 Uninstall verwijdert tabel
+- [x] A3 Uninstall verwijdert tabel
 : Verwacht: tabel verwijderd
 
 ## Suite B - Admin UI beheer
@@ -96,9 +96,9 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Bevindingen
 
-- Open issues:
+- Open issues: geen voor Suite A
 - Opgeloste issues:
-- Rest-risico:
+- Rest-risico: handmatige validatie voor suites B t/m E nog open
 
 ---
 
