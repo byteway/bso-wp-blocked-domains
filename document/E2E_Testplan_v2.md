@@ -84,21 +84,21 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Suite E - Beveiliging
 
-- [ ] E1 Nonce ontbreekt bij mutatie
+- [x] E1 Nonce ontbreekt bij mutatie
 : Verwacht: request geblokkeerd
-- [ ] E2 Onvoldoende rechten (geen manage_options)
+- [x] E2 Onvoldoende rechten (geen manage_options)
 : Verwacht: beheeracties geblokkeerd
 
 ## Go/No-Go
 
-- [ ] GO voor release
+- [x] GO voor release
 - [ ] NO-GO (blokkades open)
 
 ## Bevindingen
 
-- Open issues: geen voor Suite A t/m D
+- Open issues: geen voor Suite A t/m E
 - Opgeloste issues:
-- Rest-risico: alleen Suite E (security) nog handmatig open
+- Rest-risico: alleen resterende documentatie-afstemming en eventuele productiecheck
 
 ---
 

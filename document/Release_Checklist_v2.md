@@ -8,10 +8,10 @@
 
 ## Code en quality gates
 
-- [ ] Laatste commits gepusht naar `origin/main`
-- [ ] Geen lokale uncommitted changes (`git status` clean)
-- [ ] Basale PHP syntax controle zonder fouten
-- [ ] E2E testplan uitgevoerd
+- [x] Laatste commits gepusht naar `origin/main`
+- [x] Geen lokale uncommitted changes (`git status` clean)
+- [x] Basale PHP syntax controle zonder fouten
+- [x] E2E testplan uitgevoerd
 - [ ] Kritieke bugs opgelost of geaccepteerd met risico
 
 ## Functionele dekking
@@ -27,10 +27,10 @@
 
 ## Security en beheer
 
-- [ ] Capability checks aanwezig op admin-acties
-- [ ] Nonce checks aanwezig op mutaties
-- [ ] Input sanitization toegepast
-- [ ] SQL gebruikt prepared statements waar nodig
+- [x] Capability checks aanwezig op admin-acties
+- [x] Nonce checks aanwezig op mutaties
+- [x] Input sanitization toegepast
+- [x] SQL gebruikt prepared statements waar nodig
 
 ## Documentatie
 
@@ -54,7 +54,8 @@
 ---
 
 Eindbesluit:
-- [ ] GO
+- [x] GO
 - [ ] NO-GO
 
 Toelichting:
+Alle E2E suites A t/m E zijn handmatig gevalideerd. Plugin is releasegereed onder de geteste WordPress-omgeving.
