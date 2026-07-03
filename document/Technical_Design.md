@@ -192,6 +192,10 @@ Geregistreerde acties:
 - datatabel
 - paginatie
 
+![Admin add domain](../image/admin-add-domain.png)
+
+![Admin filter blocked domains](../image/admin-filter-blocked-domains.png)
+
 ```mermaid
 sequenceDiagram
 	participant U as Admin User
@@ -256,6 +260,8 @@ flowchart TD
 	G --> H[return processed/inserted/done]
 ```
 
+![Admin bulk create blocks](../image/admin-bulk-create-blocks.png)
+
 ### Undo-mechanisme
 
 - transient sleutel: `bso_deleted_<key>`
@@ -314,6 +320,8 @@ Ondersteunde attributen:
 - `text`
 - `class`
 
+![Public new registration](../image/public-new-registration.png)
+
 ### Outputgedrag
 
 - standaardtitel en standaardtekst zijn vertaalbaar
@@ -358,6 +366,10 @@ De v2-plugin is getest via handmatige E2E-suites A t/m E en heeft release-status
 - transient-based undo is kortlevend maar snel
 - CSV export gebruikt directe output streams
 - admin flow werkt zonder afhankelijkheid van custom JS runtime
+
+![Admin export to CSV](../image/admin-export-to-csv.png)
+
+![Admin bulk delete](../image/admin-bulk-delete.png)
 
 ---
 

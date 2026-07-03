@@ -150,6 +150,10 @@ Vereiste capability: `manage_options`
 7. Importeren via tekstveld
 8. Exporteren van de huidige lijst als CSV
 
+![Domein toevoegen](../image/admin-add-domain.png)
+
+![Filter blocked domains](../image/admin-filter-blocked-domains.png)
+
 ### Procesflow: lijstbeheer
 
 ```mermaid
@@ -202,6 +206,8 @@ Voor informatie aan eindgebruikers is de shortcode beschikbaar:
 [bso_blocked_domain_info]
 ```
 
+![Nieuwe registratie](../image/public-new-registration.png)
+
 ---
 
 ## 6. Import, export en herstel
@@ -219,10 +225,16 @@ Voor informatie aan eindgebruikers is de shortcode beschikbaar:
 - exporteert de huidige lijst of gefilterde lijst als CSV
 - output bevat minimaal kolom `domain`
 
+![Bulk create blocks](../image/admin-bulk-create-blocks.png)
+
+![Export to CSV](../image/admin-export-to-csv.png)
+
 ### Undo
 
 - verwijderde domeinen worden tijdelijk opgeslagen in een transient
 - beheerder kan direct na verwijdering herstel uitvoeren
+
+![Bulk delete](../image/admin-bulk-delete.png)
 
 ```mermaid
 flowchart TD
