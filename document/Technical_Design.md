@@ -1,8 +1,8 @@
 # Technisch Ontwerp - BSO Block Email Domains
 
 **Plugin:** `bso-blocked-domains`  
-**Versie:** 1.7  
-**Datum:** 28 juni 2026  
+**Versie:** 2.0.0  
+**Datum:** 3 juli 2026  
 **Platform:** WordPress (PHP)
 
 ---
@@ -14,25 +14,29 @@
 3. [Bootstrap en lifecycle](#3-bootstrap-en-lifecycle)
 4. [Datalaag en SQL-ontwerp](#4-datalaag-en-sql-ontwerp)
 5. [Adminarchitectuur](#5-adminarchitectuur)
-6. [AJAX contracten](#6-ajax-contracten)
+6. [Service- en validatielaag](#6-service--en-validatielaag)
 7. [Registratieblokkering](#7-registratieblokkering)
-8. [Client-side interacties](#8-client-side-interacties)
-9. [I18n, assets en distributie](#9-i18n-assets-en-distributie)
+8. [Front-end componenten](#8-front-end-componenten)
+9. [I18n, distributie en operationeel gebruik](#9-i18n-distributie-en-operationeel-gebruik)
 10. [Beveiliging en operationele aspecten](#10-beveiliging-en-operationele-aspecten)
 11. [Known Implementation Caveats](#11-known-implementation-caveats)
-12. [Refactor roadmap](#12-refactor-roadmap)
+12. [Roadmap](#12-roadmap)
 
 ---
 
 ## 1. Doel en scope
 
-Dit technisch ontwerp beschrijft de huidige implementatie van de plugin en is bedoeld als referentie voor:
+Dit technisch ontwerp beschrijft de actuele v2-implementatie van de plugin en dient als referentie voor:
 
 - onderhoud en bugfixing
 - functionele uitbreidingen
-- technische refactor zonder regressies
+- overdracht naar beheer of doorontwikkeling
 
-Het document is gebaseerd op de actuele code in de pluginmappen `admin/`, `includes/`, `languages/`, `vendor/` en rootbestanden.
+Het document is gebaseerd op de actuele code in:
+
+- `admin/`
+- `includes/`
+- rootbestanden `bso-block-domain.php` en `uninstall.php`
 
 ---
 
@@ -42,43 +46,38 @@ Het document is gebaseerd op de actuele code in de pluginmappen `admin/`, `inclu
 
 | Bestand | Rol |
 |--------|-----|
-| `bso-block-domain.php` | Bootstrap, constants, includes |
+| `bso-block-domain.php` | Bootstrap, include-volgorde, textdomain, activation hook |
 | `includes/class-bso-db.php` | Datalaag en schema lifecycle |
-| `includes/functions-helpers.php` | Validatie, normalisatie, hook helpers |
-| `includes/ajax.php` | AJAX route registratie |
-| `includes/ajax-impl.php` | AJAX handlers |
-| `admin/admin.php` | Admin pagina rendering en formulierlogica |
-| `admin/class-bso-list-table.php` | Lijstweergave met paginatie en acties |
-| `bso-admin.js` | Client-side UI/AJAX gedragingen |
+| `includes/domain-validation.php` | Domeinvalidatie, normalisatie en registratiehooks |
+| `includes/class-bso-domain-service.php` | Centrale servicelaag voor add/update/delete/import/undo |
+| `includes/frontend-ui.php` | Shortcode voor publieksuitleg |
+| `admin/class-bso-admin-page.php` | Adminpagina, forms, handlers en CSV export |
 | `uninstall.php` | Destructieve uninstall cleanup |
 
 ### Hoog-over architectuur
 
 ```mermaid
 graph TD
-		WP[WordPress Runtime]
-		MAIN[bso-block-domain.php]
-		HELP[includes/functions-helpers.php]
-		DB[includes/class-bso-db.php]
-		AR[includes/ajax.php]
-		AI[includes/ajax-impl.php]
-		ADM[admin/admin.php]
-		LT[admin/class-bso-list-table.php]
-		JS[bso-admin.js]
-		SQL[(wp_bso_blocked_domains)]
+	WP[WordPress Runtime]
+	MAIN[bso-block-domain.php]
+	DB[includes/class-bso-db.php]
+	VAL[includes/domain-validation.php]
+	SRV[includes/class-bso-domain-service.php]
+	FE[includes/frontend-ui.php]
+	ADM[admin/class-bso-admin-page.php]
+	SQL[(wp_bso_blocked_domains)]
 
-		WP --> MAIN
-		MAIN --> HELP
-		MAIN --> DB
-		MAIN --> AR
-		MAIN --> AI
-		MAIN --> ADM
-		ADM --> LT
-		ADM --> JS
-		LT --> DB
-		AI --> DB
-		HELP --> DB
-		DB --> SQL
+	WP --> MAIN
+	MAIN --> DB
+	MAIN --> VAL
+	MAIN --> SRV
+	MAIN --> FE
+	MAIN --> ADM
+	VAL --> DB
+	SRV --> DB
+	ADM --> SRV
+	ADM --> DB
+	DB --> SQL
 ```
 
 ---
@@ -91,34 +90,29 @@ In `bso-block-domain.php`:
 
 - WordPress guard: `if (!defined('ABSPATH')) exit;`
 - constants:
-	- `BSO_PLUGIN_DIR`
-	- `BSO_PLUGIN_URL`
-	- `BSO_PLUGIN_FILE`
+  - `BSO_PLUGIN_DIR`
+  - `BSO_PLUGIN_FILE`
+  - `BSO_PLUGIN_VERSION`
 - include-volgorde:
-	1. `includes/functions-helpers.php`
-	2. `includes/class-bso-db.php`
-	3. `includes/ajax.php`
-	4. `includes/ajax-impl.php`
-- admin-only includes:
-	- `admin/class-bso-list-table.php`
-	- `admin/admin.php`
+  1. `includes/class-bso-db.php`
+  2. `includes/domain-validation.php`
+  3. `includes/class-bso-domain-service.php`
+  4. `includes/frontend-ui.php`
+  5. `admin/class-bso-admin-page.php` alleen in admin-context
+- i18n hook via `plugins_loaded`
 
 ### Lifecycle hooks
 
-`includes/class-bso-db.php` registreert:
-
-- `register_activation_hook(..., ['BSO_DB','create_table'])`
-- `register_uninstall_hook(..., ['BSO_DB','drop_table'])`
-
-Daarnaast bestaat ook `uninstall.php` met een `DROP TABLE` pad.
+- `register_activation_hook(BSO_PLUGIN_FILE, ['BSO_DB', 'create_table'])`
+- uninstall via `uninstall.php`
 
 ```mermaid
 flowchart TD
-		A[Plugin load] --> B[Bootstrap includes]
-		B --> C[Hook registrations]
-		C --> D[Admin context?]
-		D -- Ja --> E[Admin menu + UI]
-		D -- Nee --> F[Registratie flows + AJAX runtime]
+	A[Plugin load] --> B[Bootstrap includes]
+	B --> C[Textdomain + hooks]
+	C --> D[Admin context?]
+	D -- Ja --> E[Admin menu + handlers]
+	D -- Nee --> F[Registratie hooks + shortcode runtime]
 ```
 
 ---
@@ -133,6 +127,8 @@ flowchart TD
 CREATE TABLE {prefix}bso_blocked_domains (
 	id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 	domain VARCHAR(255) NOT NULL,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	PRIMARY KEY (id),
 	UNIQUE KEY domain_unique (domain)
 )
@@ -142,18 +138,24 @@ CREATE TABLE {prefix}bso_blocked_domains (
 
 | Methode | Gedrag |
 |---------|--------|
+| `table_name()` | Volledige tabelnaam bepalen |
 | `create_table()` | Tabel aanmaken/updaten via `dbDelta` |
 | `drop_table()` | Tabel verwijderen |
-| `insert_domains(array)` | `INSERT IGNORE` per domein |
-| `get_domains(search, per_page, offset)` | Domeinen ophalen, optioneel gefilterd en gepagineerd |
-| `count_domains(search)` | Aantal records (optioneel op zoekfilter) |
+| `is_domain_blocked(domain)` | Bestaan van domein controleren |
+| `get_domains(search, per_page, offset)` | Domeinen ophalen, optioneel gefilterd/gepagineerd |
+| `count_domains(search)` | Aantal records tellen |
+| `get_existing_domains(domains)` | Subset van bestaande domeinen ophalen |
+| `insert_domain(domain)` | Enkel domein opslaan via `INSERT IGNORE` |
+| `insert_domains_bulk(domains)` | Meerdere inserts in loop |
+| `update_domain(old, new)` | Domein muteren |
+| `delete_domains(domains)` | Set domeinen verwijderen |
 
 ### Query-eigenschappen
 
-- Uniqueness is database-afgedwongen
-- Zoekfilter gebruikt `LIKE %term%`
-- Paging met `LIMIT/OFFSET`
-- `INSERT IGNORE` voorkomt duplicate insert-fouten
+- uniqueness is database-afgedwongen
+- zoekfilter gebruikt `LIKE %term%`
+- paging met `LIMIT/OFFSET`
+- mutaties gebruiken prepared statements
 
 ---
 
@@ -161,86 +163,113 @@ CREATE TABLE {prefix}bso_blocked_domains (
 
 ### Menu en pagina
 
-`admin/admin.php` registreert:
+`admin/class-bso-admin-page.php` registreert:
 
 - `add_options_page(...)` onder Settings
-- pagina callback: `bso_admin_page()`
+- page slug: `bso-blocked-domains`
 
-In `bso_admin_page()`:
+### Verwerkingsmodel
 
-- capability-check `manage_options`
-- enqueuen SweetAlert2 en `bso-admin.js`
-- localizen `bsoAdmin` object met AJAX URL + nonces + UI strings
-- upload/preview flow voor importbestand
-- rendering van `BSO_List_Table`
+De adminpagina werkt server-side via `admin-post.php` handlers in plaats van AJAX.
 
-### Lijstlaag
+Geregistreerde acties:
 
-`admin/class-bso-list-table.php`:
+- `bso_add_domain`
+- `bso_update_domain`
+- `bso_delete_domains`
+- `bso_import_domains`
+- `bso_set_page_size`
+- `bso_restore_domains`
+- `bso_export_domains`
 
-- kolommen: checkbox, domain, actions
-- row actions: edit/delete knoppen met `data-domain`
-- paginatie op basis van optie `bso_page_size` (default 50)
-- data ophalen via `BSO_DB::get_domains()`
+### Pagina-opbouw
+
+- notice rendering
+- add form
+- optioneel edit form
+- import form
+- zoek- en page-size controls
+- datatabel
+- paginatie
 
 ```mermaid
 sequenceDiagram
-		participant U as Admin User
-		participant P as admin.php
-		participant T as BSO_List_Table
-		participant D as BSO_DB
+	participant U as Admin User
+	participant P as BSO_Admin_Page
+	participant S as BSO_Domain_Service
+	participant D as BSO_DB
 
-		U->>P: Open settings page
-		P->>T: prepare_items()
-		T->>D: count_domains(search)
-		T->>D: get_domains(search, per_page, offset)
-		D-->>T: domain rows
-		T-->>P: render table
-		P-->>U: HTML + controls
+	U->>P: Open settings page
+	P->>D: count_domains(search)
+	P->>D: get_domains(search, per_page, offset)
+	D-->>P: domain rows
+	P-->>U: HTML forms + table + pagination
+
+	U->>P: Submit add/edit/delete/import
+	P->>S: invoke service method
+	S->>D: mutation/query
+	D-->>S: result
+	S-->>P: structured result
+	P-->>U: redirect + notice
 ```
 
 ---
 
-## 6. AJAX contracten
+## 6. Service- en validatielaag
 
-### Actie-overzicht
+### BSO_Domain_Service
 
-| Action | Method | Belangrijkste input | Output |
-|--------|--------|---------------------|--------|
-| `bso_add_domain` | POST | `domain`, `nonce` | inserted flag + genormaliseerd domein |
-| `bso_update_domain` | POST | `old`, `new`, `nonce` | aangepast domein |
-| `bso_delete_domains` | POST | `domains[]` of `delete_all`, `search` | `deleted_count`, `undo_key` |
-| `bso_import_init` | POST | `import_preview`, `nonce_save` | transient key + totals |
-| `bso_import_chunk` | POST | `key`, `start`, `length` | incremental imported + merged total |
-| `bso_export_invalid` | GET/POST | `nonce_save`, `key` of `invalid_preview` | CSV stream |
-| `bso_export_list` | GET | `nonce_manage`, optionele `search` | CSV stream |
-| `bso_set_page_size` | POST | `size`, `nonce_manage` | opgeslagen page size |
-| `bso_restore_domains` | POST | `key`, `nonce_manage` | restored count |
+De servicelaag centraliseert businesslogica en uniformiseert resultaten via:
 
-### AuthN/AuthZ patroon
+```php
+array(
+  'ok' => bool,
+  'code' => string,
+  'message' => string,
+  'data' => array,
+)
+```
 
-Elke handler valideert:
+### Beschikbare service-acties
 
-1. `current_user_can('manage_options')`
-2. nonce (`bso_manage_domains` of `save_blocked_domains`, afhankelijk van actie)
+| Methode | Doel |
+|---------|------|
+| `normalize_domains()` | Bulk normaliseren + invalid verzamelen |
+| `add_domain()` | Enkel domein toevoegen |
+| `update_domain()` | Domein aanpassen |
+| `delete_domains()` | Domeinen verwijderen + optioneel undo |
+| `restore_domains()` | Verwijderde set terugplaatsen |
+| `parse_import_lines()` | Valid/invalid resultset opbouwen |
+| `import_init()` | Importdataset in transient bewaren |
+| `import_chunk()` | Import in batches verwerken |
 
-### Import verwerking
+### Importverwerking
 
 ```mermaid
 flowchart TD
-		A[import_preview text] --> B[bso_import_init]
-		B --> C[parse valid/invalid]
-		C --> D[store transients key + key_invalid]
-		D --> E[return key,total]
-		E --> F[bso_import_chunk loop]
-		F --> G[INSERT IGNORE chunk]
-		G --> H[return imported/merged_total]
+	A[raw_input] --> B[preg_split lines]
+	B --> C[parse_import_lines]
+	C --> D[save valid/invalid in transient]
+	D --> E[return import key]
+	E --> F[import_chunk(start,length)]
+	F --> G[insert_domains_bulk(chunk)]
+	G --> H[return processed/inserted/done]
 ```
 
-### Undo mechanisme
+### Undo-mechanisme
 
-- Bij delete wordt transient `bso_deleted_<key>` gezet (TTL 60 sec)
-- Restore herplaatst records via `BSO_DB::insert_domains`
+- transient sleutel: `bso_deleted_<key>`
+- TTL: 300 seconden
+
+### Validatielaag
+
+`includes/domain-validation.php` verzorgt:
+
+- IDN naar ASCII omzetting
+- domeinnormalisatie
+- domeinvalidatie
+- e-maildomeinextractie
+- centrale foutmelding via filter `bso_blocked_domain_error_message`
 
 ---
 
@@ -253,63 +282,63 @@ De plugin blokkeert:
 - nieuwe accountregistratie met geblokkeerd domein
 - admin profielwijziging naar geblokkeerd domein
 
-### Technische flow
-
-```mermaid
-flowchart TD
-		A[Input email] --> B[extract domain na @]
-		B --> C[get_blocked_domains]
-		C --> D{in array?}
-		D -- Ja --> E[errors->add blocked_email_domain]
-		D -- Nee --> F[allow]
-```
-
 ### Relevante hooks
 
 - `registration_errors`
 - `user_profile_update_errors`
 
----
+### Technische flow
 
-## 8. Client-side interacties
-
-`bso-admin.js` implementeert:
-
-- add/edit/delete acties met fetch naar `admin-ajax.php`
-- bulk delete met optional all-matching mode
-- import init + chunkloop met voortgang
-- restore flow via undo key
-- modal/prompt/confirm abstractie met SweetAlert2 fallback naar browser dialogs
-
-### Frontend state object
-
-Vanuit PHP wordt `window.bsoAdmin` gevuld met:
-
-- `ajax_url`
-- `nonce_manage`
-- `nonce_save`
-- vertaalde UI strings
+```mermaid
+flowchart TD
+	A[Input email] --> B[bso_extract_domain_from_email]
+	B --> C[BSO_DB::is_domain_blocked]
+	C --> D{blocked?}
+	D -- Ja --> E[errors->add blocked_email_domain]
+	D -- Nee --> F[allow]
+```
 
 ---
 
-## 9. I18n, assets en distributie
+## 8. Front-end componenten
+
+### Shortcode
+
+`includes/frontend-ui.php` registreert:
+
+- shortcode: `bso_blocked_domain_info`
+
+Ondersteunde attributen:
+
+- `title`
+- `text`
+- `class`
+
+### Outputgedrag
+
+- standaardtitel en standaardtekst zijn vertaalbaar
+- extra CSS-class kan meegegeven worden
+- output is een eenvoudige `<section>` met titel en toelichting
+
+---
+
+## 9. I18n, distributie en operationeel gebruik
 
 ### I18n
 
 - text domain: `block-email-domains`
 - laadpunt via `load_plugin_textdomain`
-- bestanden:
-	- `languages/block-email-domains.pot`
-	- `languages/nl_NL.po`
+- foutmeldingen en UI-teksten gebruiken `__()`
 
-### Assets
+### Distributie
 
-- `vendor/sweetalert2.min.js` (lokaal gebundeld)
-- `bso-admin.js` (admin gedrag)
+De v2-plugin is getest via handmatige E2E-suites A t/m E en heeft release-status GO.
 
-### Tooling
+### Operationeel gebruik
 
-- `tools/po2mo.php` voor vertaalworkflow ondersteuning
+- beheer via Settings-pagina
+- registratie via standaard WordPress flows
+- documentatie via `document/E2E_Testplan_v2.md`, `document/Release_Checklist_v2.md` en `document/Handoff_Runbook_Beheerder.md`
 
 ---
 
@@ -321,95 +350,60 @@ Vanuit PHP wordt `window.bsoAdmin` gevuld met:
 - nonce controles op mutaties
 - input sanitization met WordPress helpers
 - DB uniqueness guard
+- prepared statements voor querypaden
 
 ### Operationeel
 
 - chunked import voorkomt timeouts bij grotere lijsten
-- transient-based undo is snel maar kortlevend
+- transient-based undo is kortlevend maar snel
 - CSV export gebruikt directe output streams
+- admin flow werkt zonder afhankelijkheid van custom JS runtime
 
 ---
 
 ## 11. Known Implementation Caveats
 
-### 11.1 Hooks in helpersbestand staan in functieblok
+### 11.1 Import preview ontbreekt nog als aparte tussenstap
 
-In `includes/functions-helpers.php` staan de functies en hook-registraties voor registratieblokkering tekstueel binnen het blok van `bso_domain_to_ascii()` (tussen de IDN-logica en de afsluitende return). Dit maakt de hookregistratie afhankelijk van runtime-uitvoering van die functie, wat functioneel onbetrouwbaar is.
-
-Impact:
-
-- blokkering kan niet altijd vroeg/consistent geactiveerd worden
-- code leesbaarheid en onderhoudbaarheid nemen af
-
-### 11.2 Dubbele AJAX add_action registraties
-
-`includes/ajax.php` registreert acties, maar `includes/ajax-impl.php` registreert ten minste 3 acties opnieuw (`bso_add_domain`, `bso_update_domain`, `bso_delete_domains`).
+De huidige importflow valideert en importeert direct. Er is nog geen aparte visuele previewfase voordat de beheerder de definitieve import bevestigt.
 
 Impact:
 
-- onnodige duplicatie
-- risico op side effects bij toekomstige wijzigingen
+- functioneel werkend, maar minder controle vooraf
 
-### 11.3 Twee uninstall-mechanismen
+### 11.2 Bulk insert is nog loop-gebaseerd
 
-Er is zowel een `register_uninstall_hook(... BSO_DB::drop_table)` als een `uninstall.php` met `DROP TABLE`.
-
-Impact:
-
-- dubbel beheerpad
-- onderhoudsrisico bij afwijkende toekomstige logica
-
-### 11.4 Zoekveld mismatch in bulk-delete JS
-
-`bso-admin.js` zoekt bij delete-all-matching op `input[name="bso_search"]`, terwijl de admin zoekinput `name="s"` gebruikt.
+`insert_domains_bulk()` voert inserts sequentieel uit via `insert_domain()`.
 
 Impact:
 
-- search-filter kan leeg doorgegeven worden bij delete-all-matching
+- correct gedrag
+- minder performant dan een multi-row insert bij zeer grote datasets
 
-### 11.5 admin_enqueue placeholder
+### 11.3 Geen geautomatiseerde testsuite in repository
 
-`bso_admin_enqueue()` bevat alleen `get_current_screen()` zonder conditionele enqueue-logica.
+Validatie is nu handmatig uitgevoerd via E2E-documentatie.
 
 Impact:
 
-- weinig functioneel effect; potentieel verwarrend voor onderhoud
+- hogere afhankelijkheid van handmatige regressietests
 
 ---
 
-## 12. Refactor roadmap
+## 12. Roadmap
 
-### Fase 1 - Stabiliseren
+### Korte termijn
 
-1. Verplaats registratiehooks uit het `bso_domain_to_ascii` blok naar top-level in helpers.
-2. Centraliseer AJAX `add_action` declaraties in 1 bestand.
-3. Kies 1 uninstall-strategie (voorkeur: `uninstall.php`).
-4. Fix zoekveldnaam in `bso-admin.js` (`s` in plaats van `bso_search`).
+1. Import preview toevoegen met valid/invalid split in admin UI.
+2. Zoek- en paginatiequeries verder optimaliseren.
+3. Edge-case testset voor IDN en malformed domeinen uitbreiden.
 
-### Fase 2 - Hardening
+### Middellange termijn
 
-1. Voeg nonce-check wrappers toe voor consistente foutresponsen.
-2. Voeg logging/telemetrie toe rond import en mass-delete.
-3. Voeg automatische tests toe voor validatie en import parser.
-
-### Fase 3 - Schaalbaarheid
-
-1. Batch insert optimaliseren (multi-row insert) in plaats van per-row loop.
-2. Optionele cachelaag voor blocked domain set tijdens registratiepieken.
+1. Multi-row insert voor bulkimport implementeren.
+2. Geautomatiseerde tests toevoegen voor validatie en servicegedrag.
+3. Optionele audit logging toevoegen voor beheeracties.
 
 ---
 
-## Code referenties
-
-- `bso-block-domain.php`
-- `includes/class-bso-db.php`
-- `admin/admin.php`
-- `admin/class-bso-list-table.php`
-- `includes/ajax.php`
-- `includes/ajax-impl.php`
-- `includes/functions-helpers.php`
-- `bso-admin.js`
-
----
-
-*Gegenereerd op 28 juni 2026 - Technisch Ontwerp v1.7*
+*Gegenereerd op 3 juli 2026 - Technisch Ontwerp v2.0.0*

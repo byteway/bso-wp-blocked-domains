@@ -1,9 +1,9 @@
 # Functioneel Ontwerp - BSO Block Email Domains
 
 **Plugin:** `bso-blocked-domains`  
-**Versie:** 1.7  
+**Versie:** 2.0.0  
 **Auteur:** Byteway Software Ontwikkeling  
-**Datum:** 28 juni 2026  
+**Datum:** 3 juli 2026  
 **Doelplatform:** WordPress
 
 ---
@@ -15,7 +15,7 @@
 3. [Datamodel](#3-datamodel)
 4. [Beheeromgeving (Admin)](#4-beheeromgeving-admin)
 5. [Publieke registratieblokkering](#5-publieke-registratieblokkering)
-6. [AJAX API en verwerkingsflows](#6-ajax-api-en-verwerkingsflows)
+6. [Import, export en herstel](#6-import-export-en-herstel)
 7. [Validatie- en bedrijfslogica](#7-validatie--en-bedrijfslogica)
 8. [Klassen- en modulestructuur](#8-klassen--en-modulestructuur)
 9. [Activatie en deinstallatie](#9-activatie-en-deinstallatie)
@@ -26,21 +26,25 @@
 
 ## 1. Inleiding en doel
 
-De plugin **BSO Block Email Domains** voorkomt dat gebruikersaccounts worden aangemaakt of bijgewerkt met e-mailadressen van domeinen die op een blokkeerlijst staan.
+De plugin **BSO Block Email Domains** voorkomt dat gebruikersaccounts worden aangemaakt of bijgewerkt met e-mailadressen van domeinen die op een beheerde blokkeerlijst staan.
 
 De plugin ondersteunt:
-- Blokkering bij publieke registratie
-- Blokkering bij admin-profielupdates
-- Beheer van geblokkeerde domeinen via admin UI
-- Import/export workflows voor grote domeinlijsten
+
+- blokkering bij publieke registratie
+- blokkering bij admin-profielupdates
+- beheer van geblokkeerde domeinen via WordPress admin
+- import van grote domeinlijsten
+- export van de huidige domeinlijst als CSV
+- undo na verwijderacties
+- optionele shortcode voor publieke uitleg
 
 ### Doelgroepen
 
 | Rol | Doel |
 |-----|------|
-| Beheerder (`manage_options`) | Domeinen importeren, beheren, corrigeren, verwijderen, exporteren |
-| Publieke bezoeker | Registratie wordt geweigerd bij geblokkeerd e-maildomein |
-| Sitebeheer (operationeel) | Controleerbare, schaalbare en onderhoudbare domeinblokkering |
+| Beheerder (`manage_options`) | Domeinen beheren, importeren, exporteren en corrigeren |
+| Publieke bezoeker | Registratie wordt geweigerd bij een geblokkeerd e-maildomein |
+| Sitebeheer | Betrouwbare en controleerbare beheersing van toegestane registratiedomeinen |
 
 ---
 
@@ -50,15 +54,13 @@ De plugin ondersteunt:
 graph TD
 	WP[WordPress Core]
 
-	subgraph Plugin[BSO Block Email Domains]
-		MAIN[bso-block-domain.php\nBootstrap + includes]
-		HELP[includes/functions-helpers.php\nValidatie + helpers + registratie hooks]
-		DB[includes/class-bso-db.php\nDB laag]
-		AJAX_REG[includes/ajax.php\nAJAX routes]
-		AJAX_IMPL[includes/ajax-impl.php\nAJAX handlers]
-		ADMIN[admin/admin.php\nAdmin pagina renderer]
-		LIST[admin/class-bso-list-table.php\nWP_List_Table]
-		JS[bso-admin.js\nAdmin interacties]
+	subgraph Plugin[BSO Block Email Domains v2]
+		MAIN[bso-block-domain.php\nBootstrap]
+		DB[includes/class-bso-db.php\nDatalaag]
+		VAL[includes/domain-validation.php\nValidatie + registratiehooks]
+		SRV[includes/class-bso-domain-service.php\nDomeinservice]
+		FE[includes/frontend-ui.php\nShortcode + publieksuitleg]
+		ADM[admin/class-bso-admin-page.php\nAdmin UI + handlers]
 	end
 
 	subgraph Data[Database]
@@ -66,37 +68,26 @@ graph TD
 	end
 
 	subgraph Browser[Browser]
-		ADMIN_UI[WordPress admin UI]
-		REG_UI[Registratieformulier]
+		ADMIN_UI[Admin beheerpagina]
+		REG_UI[Registratie / profielupdate]
+		INFO_UI[Uitlegpagina met shortcode]
 	end
 
 	WP --> MAIN
-	MAIN --> HELP
 	MAIN --> DB
-	MAIN --> AJAX_REG
-	MAIN --> AJAX_IMPL
-	MAIN --> ADMIN
-	ADMIN --> LIST
-	ADMIN --> JS
-
+	MAIN --> VAL
+	MAIN --> SRV
+	MAIN --> FE
+	MAIN --> ADM
 	DB --> TBL
-	AJAX_IMPL --> TBL
-	LIST --> TBL
-	HELP --> TBL
-
-	ADMIN_UI --> JS
-	REG_UI --> HELP
+	VAL --> DB
+	SRV --> DB
+	ADM --> SRV
+	ADM --> DB
+	ADMIN_UI --> ADM
+	REG_UI --> VAL
+	INFO_UI --> FE
 ```
-
-### Subfolder-dekking
-
-Onderstaande onderdelen zijn meegenomen in dit ontwerp:
-- `admin/`
-- `includes/`
-- `languages/`
-- `vendor/`
-- `tools/`
-- rootbestanden (`bso-block-domain.php`, `bso-admin.js`, `uninstall.php`, `blocked-domains.txt`, `readme.md`)
 
 ---
 
@@ -109,6 +100,8 @@ erDiagram
 	BSO_BLOCKED_DOMAINS {
 		BIGINT id PK
 		VARCHAR domain UK
+		DATETIME created_at
+		DATETIME updated_at
 	}
 ```
 
@@ -117,13 +110,16 @@ erDiagram
 | Veld | Type | Omschrijving |
 |------|------|--------------|
 | `id` | BIGINT(20) UNSIGNED | Primaire sleutel, auto-increment |
-| `domain` | VARCHAR(255) | Geblokkeerd domein, uniek (`UNIQUE KEY`) |
+| `domain` | VARCHAR(255) | Geblokkeerd domein, uniek |
+| `created_at` | DATETIME | Aanmaakmoment record |
+| `updated_at` | DATETIME | Laatste wijzigingsmoment |
 
 ### Datakarakteristieken
 
-- Duplicaten worden genegeerd door `INSERT IGNORE`
-- Zoek- en exportacties ondersteunen filtering via `LIKE`
-- Opslag is DB-only (geen actieve file-based opslag meer)
+- unieke opslag van domeinen op database-niveau
+- zoeken via `LIKE`
+- paging via `LIMIT/OFFSET`
+- import negeert duplicaten functioneel en technisch
 
 ---
 
@@ -138,49 +134,36 @@ De plugin registreert een instellingenpagina onder:
 ```mermaid
 graph LR
 	SETTINGS[WordPress Settings]
-	SETTINGS --> BED[Block Email Domains\nadmin/admin.php]
+	SETTINGS --> BED[Block Email Domains\nadmin/class-bso-admin-page.php]
 ```
 
-Vereiste capability: `manage_options`.
+Vereiste capability: `manage_options`
 
 ### Kernfuncties in beheerpagina
 
-1. Importbestand uploaden en previewen
-2. Import in chunks starten
-3. Domein handmatig toevoegen
-4. Domein per rij bewerken/verwijderen
-5. Bulk delete en delete-all-matching
-6. CSV export van (gefilterde) lijst
-
-### Procesflow: import + preview
-
-```mermaid
-flowchart TD
-	A[Admin uploadt TXT-bestand] --> B[Nonce check save_blocked_domains]
-	B --> C[Lees regels en parse]
-	C --> D{Regel geldig domein?}
-	D -- Ja --> E[Voeg toe aan valid list]
-	D -- Nee --> F[Voeg toe aan invalid list met line number]
-	E --> G[Toon import samenvatting]
-	F --> G
-	G --> H[Start Import knop]
-```
+1. Domein handmatig toevoegen
+2. Domein bewerken
+3. Selectie verwijderen
+4. Alles verwijderen op basis van huidig filter
+5. Undo na verwijderen
+6. Zoeken en pagineren
+7. Importeren via tekstveld
+8. Exporteren van de huidige lijst als CSV
 
 ### Procesflow: lijstbeheer
 
 ```mermaid
 flowchart TD
-	A[Admin opent lijst] --> B[WP_List_Table prepare_items]
-	B --> C[Optionele zoekterm]
-	C --> D[Paginated query op DB]
-	D --> E[Toon rijen]
-	E --> F{Actie?}
-	F -- Add --> G[AJAX bso_add_domain]
-	F -- Edit --> H[AJAX bso_update_domain]
-	F -- Delete --> I[AJAX bso_delete_domains]
-	F -- Export --> J[AJAX bso_export_list]
-	I --> K[Opslaan undo transient]
-	K --> L[Optionele restore via bso_restore_domains]
+	A[Admin opent beheerpagina] --> B[Zoekterm + page size bepalen]
+	B --> C[Domeinen uit database ophalen]
+	C --> D[Overzicht tonen]
+	D --> E{Actie?}
+	E -- Toevoegen --> F[Service add_domain]
+	E -- Bewerken --> G[Service update_domain]
+	E -- Verwijderen --> H[Service delete_domains]
+	H --> I[Undo key opslaan in transient]
+	E -- Export --> J[CSV output huidige filter]
+	E -- Import --> K[Service import_init + import_chunk]
 ```
 
 ---
@@ -192,7 +175,7 @@ De plugin controleert e-maildomeinen bij registratie- en profielworkflows.
 ### Blokkeerpunt 1: publieke registratie
 
 - Hook: `registration_errors`
-- Controle: domein uit user e-mail vergelijken met geblokkeerde lijst
+- Controle: domein uit ingevoerd e-mailadres vergelijken met blokkeerlijst
 - Gedrag: foutmelding toevoegen bij match
 
 ### Blokkeerpunt 2: admin profielupdate
@@ -205,65 +188,51 @@ De plugin controleert e-maildomeinen bij registratie- en profielworkflows.
 ```mermaid
 flowchart TD
 	A[Gebruiker verstuurt e-mail] --> B[Extract domain na @]
-	B --> C[Laad blocked domains uit DB]
-	C --> D{Domain in blocked list?}
+	B --> C[Normaliseer domein]
+	C --> D{Domein geblokkeerd?}
 	D -- Ja --> E[Voeg blocked_email_domain fout toe]
 	D -- Nee --> F[Geen blokkering]
 ```
 
----
+### Publieke uitleg
 
-## 6. AJAX API en verwerkingsflows
+Voor informatie aan eindgebruikers is de shortcode beschikbaar:
 
-### Beschikbare AJAX acties
-
-| Actie | Doel |
-|------|------|
-| `bso_add_domain` | Domein toevoegen |
-| `bso_update_domain` | Domein bewerken |
-| `bso_delete_domains` | Enkele/meerdere/all-matching verwijderen |
-| `bso_import_init` | Importset voorbereiden in transient |
-| `bso_import_chunk` | Chunkgewijs importeren |
-| `bso_export_invalid` | Invalid importregels als CSV exporteren |
-| `bso_export_list` | Huidige/gefilterde domeinlijst exporteren |
-| `bso_set_page_size` | Paginaformaat instellen |
-| `bso_restore_domains` | Verwijderde domeinen herstellen (undo) |
-
-### Procesflow: chunked import
-
-```mermaid
-sequenceDiagram
-	participant UI as Admin UI (bso-admin.js)
-	participant AJ as AJAX
-	participant TR as Transient Store
-	participant DB as DB Table
-
-	UI->>AJ: bso_import_init(import_preview)
-	AJ->>TR: save valid items + invalid items
-	AJ-->>UI: key + total + invalid_count
-
-	loop per chunk
-		UI->>AJ: bso_import_chunk(key,start,length)
-		AJ->>TR: load items
-		AJ->>DB: INSERT IGNORE chunk
-		AJ-->>UI: imported + merged_total
-	end
-
-	UI-->>UI: update progress + reload
+```text
+[bso_blocked_domain_info]
 ```
 
-### Procesflow: delete + undo
+---
+
+## 6. Import, export en herstel
+
+### Import
+
+- invoer: één domein per regel
+- lege regels worden genegeerd
+- ongeldige regels worden overgeslagen
+- duplicaten worden niet dubbel opgeslagen
+- grote imports worden chunkgewijs verwerkt
+
+### Export
+
+- exporteert de huidige lijst of gefilterde lijst als CSV
+- output bevat minimaal kolom `domain`
+
+### Undo
+
+- verwijderde domeinen worden tijdelijk opgeslagen in een transient
+- beheerder kan direct na verwijdering herstel uitvoeren
 
 ```mermaid
 flowchart TD
-	A[Delete request] --> B[Nonce + capability check]
-	B --> C[Opslaan te verwijderen domeinen in transient]
-	C --> D[Verwijder records uit DB]
-	D --> E[Retourneer deleted_count + undo_key]
-	E --> F{Admin kiest restore?}
-	F -- Ja --> G[bso_restore_domains met undo_key]
-	G --> H[INSERT IGNORE terug in DB]
-	F -- Nee --> I[Geen herstel]
+	A[Delete request] --> B[Validatie + capability + nonce]
+	B --> C[Opslaan deleted domains in transient]
+	C --> D[Verwijderen uit DB]
+	D --> E[Toon undo-link]
+	E --> F{Undo gekozen?}
+	F -- Ja --> G[Restore domains]
+	F -- Nee --> H[Geen herstel]
 ```
 
 ---
@@ -272,31 +241,36 @@ flowchart TD
 
 ### Domeinvalidatie
 
-De helperlogica valideert onder andere:
+De validatielaag controleert onder andere:
 
-- Geen spaties of `@`
-- Minimaal een punt in domein
-- Geen leading/trailing punt
-- Maximale domeinlengte 253
-- Labelregels: max 63, geen leading/trailing `-`, alleen `[A-Za-z0-9-]`
+- geen spaties of `@`
+- minimaal één punt in domein
+- geen leading of trailing punt
+- maximale lengte 253 tekens
+- labels maximaal 63 tekens
+- labels mogen niet beginnen of eindigen met `-`
+- alleen `a-z`, `0-9` en `-`
 
-### IDN/punycode verwerking
+### Normalisatie
 
-Bij beschikbaarheid van `idn_to_ascii` wordt domein omgezet naar ASCII-variant voor validatie en opslag.
+- trimmen
+- lowercase
+- sanitization via WordPress helpers
+- IDN omzetting naar ASCII indien beschikbaar
 
-### Importregels
+### Importlogica
 
-- Lege regels worden genegeerd
-- Geldige regels worden gededupliceerd
-- Ongeldige regels worden geregistreerd met regelnummer en originele waarde
+- regels worden opgesplitst per newline
+- geldige regels naar `valid`
+- ongeldige regels naar `invalid`
+- resultaten worden gededupliceerd
 
 ```mermaid
 flowchart LR
-	RAW[Ruwe regel] --> TRIM[trim + sanitize_text_field]
-	TRIM --> IDN[bso_domain_to_ascii]
-	IDN --> VALID{bso_is_valid_domain}
+	RAW[Ruwe regel] --> NORM[normalize domain]
+	NORM --> VALID{valid?}
 	VALID -- Ja --> OK[naar valid set]
-	VALID -- Nee --> BAD[naar invalid set met line]
+	VALID -- Nee --> BAD[naar invalid set]
 ```
 
 ---
@@ -306,66 +280,57 @@ flowchart LR
 ```mermaid
 classDiagram
 	class BSO_DB {
+		+table_name()
 		+create_table()
 		+drop_table()
-		+insert_domains(domains)
+		+is_domain_blocked(domain)
 		+get_domains(search, per_page, offset)
 		+count_domains(search)
+		+get_existing_domains(domains)
+		+insert_domain(domain)
+		+insert_domains_bulk(domains)
+		+update_domain(old, new)
+		+delete_domains(domains)
 	}
 
-	class BSO_List_Table {
-		+get_columns()
-		+column_cb(item)
-		+column_domain(item)
-		+column_actions(item)
-		+get_bulk_actions()
-		+prepare_items()
+	class BSO_Domain_Service {
+		+normalize_domains(domains)
+		+add_domain(domain)
+		+update_domain(old_domain, new_domain)
+		+delete_domains(domains, store_undo)
+		+restore_domains(undo_key)
+		+parse_import_lines(lines)
+		+import_init(raw_input)
+		+import_chunk(import_key, start, length)
 	}
 
-	class Admin_Page {
-		+bso_admin_menu()
-		+bso_admin_page()
+	class BSO_Admin_Page {
+		+register_menu()
+		+render_page()
+		+handle_add_domain()
+		+handle_update_domain()
+		+handle_delete_domains()
+		+handle_import_domains()
+		+handle_restore_domains()
+		+handle_export_domains()
 	}
 
-	class Ajax_Impl {
-		+bso_ajax_add_domain()
-		+bso_ajax_update_domain()
-		+bso_ajax_delete_domains()
-		+bso_ajax_import_init()
-		+bso_ajax_import_chunk()
-		+bso_ajax_export_invalid()
-		+bso_ajax_export_list()
-		+bso_ajax_set_page_size()
-		+bso_ajax_restore_domains()
-	}
-
-	class Helpers {
+	class Validation {
 		+bso_domain_to_ascii(domain)
+		+bso_normalize_domain(domain)
 		+bso_is_valid_domain(domain)
-		+bso_parse_import_lines(lines)
-		+get_blocked_domains()
+		+bso_extract_domain_from_email(email)
+		+bso_validate_registration_domain(errors, login, email)
+		+bso_validate_profile_domain(errors, update, user)
 	}
 
-	BSO_List_Table --> BSO_DB : gebruikt
-	Admin_Page --> BSO_List_Table : rendert
-	Ajax_Impl --> BSO_DB : CRUD
-	Ajax_Impl --> Helpers : validatie
-```
+	class Frontend_UI {
+		+bso_shortcode_blocked_domain_info(atts)
+	}
 
-### Mapniveau (onderdelen)
-
-```mermaid
-graph TD
-	ROOT[bso-blocked-domains]
-	ROOT --> A[admin/]
-	ROOT --> I[includes/]
-	ROOT --> L[languages/]
-	ROOT --> V[vendor/]
-	ROOT --> T[tools/]
-	ROOT --> R1[bso-block-domain.php]
-	ROOT --> R2[bso-admin.js]
-	ROOT --> R3[uninstall.php]
-	ROOT --> R4[blocked-domains.txt]
+	BSO_Domain_Service --> BSO_DB : gebruikt
+	BSO_Admin_Page --> BSO_Domain_Service : gebruikt
+	Validation --> BSO_DB : lookup blokkade
 ```
 
 ---
@@ -374,7 +339,7 @@ graph TD
 
 ### Activatie
 
-Bij pluginactivatie wordt de DB-tabel aangemaakt via `register_activation_hook` en `dbDelta`.
+Bij activatie wordt de tabel aangemaakt via `register_activation_hook` en `dbDelta`.
 
 ```mermaid
 flowchart TD
@@ -385,12 +350,7 @@ flowchart TD
 
 ### Deinstallatie
 
-Er zijn twee deinstallatiepaden aanwezig:
-
-1. `uninstall.php` met `DROP TABLE IF EXISTS`
-2. `register_uninstall_hook(... BSO_DB::drop_table)` in DB-module
-
-Beide verwijderen de plugindata (destructief).
+Bij uninstall verwijdert `uninstall.php` de tabel `wp_bso_blocked_domains`.
 
 ```mermaid
 flowchart TD
@@ -404,23 +364,18 @@ flowchart TD
 
 ### Assets
 
-| Bestand | Functie |
-|--------|---------|
-| `bso-admin.js` | UI interactie, modal/prompt, AJAX calls, importprogress |
-| `vendor/sweetalert2.min.js` | Modal dialogs en toasts |
+De v2-plugin gebruikt geen aparte JavaScript-adminbundel meer voor kernfunctionaliteit; beheeracties lopen server-side via `admin-post.php`.
 
 ### Lokalisatie
 
-| Map/bestand | Doel |
-|-------------|------|
-| `languages/block-email-domains.pot` | Vertaaltemplate |
-| `languages/nl_NL.po` | Nederlandse vertaling |
+- text domain: `block-email-domains`
+- laadpunt via `load_plugin_textdomain`
+- foutmeldingen en beheerteksten zijn vertaalbaar
 
 ### Tooling
 
-| Bestand | Doel |
-|--------|------|
-| `tools/po2mo.php` | Conversie/ondersteuning vertaalbestanden |
+- releasecontrole via `document/Release_Checklist_v2.md`
+- handmatige validatie via `document/E2E_Testplan_v2.md`
 
 ---
 
@@ -435,24 +390,24 @@ graph TD
 
 	subgraph Functionaliteit
 		MNG[Beheer blocked domains]
-		AJAX[AJAX beheeracties]
+		IMP[Import export]
 		REG[Registratiecontrole]
 		PROF[Profielupdatecontrole]
 	end
 
 	ADMIN --> MNG
-	ADMIN --> AJAX
+	ADMIN --> IMP
 	USER --> REG
 	ADMIN --> PROF
 ```
 
 ### Beveiligingsmaatregelen
 
-- Capability checks op AJAX endpoints
-- Nonce validatie op muterende acties
-- Sanitization van inputvelden
-- Voorbereide SQL statements waar toegepast
-- Isolatie van data in dedicated tabel
+- capability checks op admin-acties
+- nonce-validatie op mutaties
+- input sanitization op domeinen, zoekvelden en sleutels
+- prepared statements in querypaden
+- unieke databaseconstraint op `domain`
 
 ### Toegangsmatrix
 
@@ -465,10 +420,4 @@ graph TD
 
 ---
 
-## Bijlage - Functionele status
-
-De plugin is functioneel voor productiegebruik als beheerplugin voor domeinblokkering. Door de modulaire opzet (`admin/`, `includes/`, `vendor/`, `languages/`) is de codebase klaar voor doorontwikkeling, zoals extra auditlogging, uitgebreidere rapportage of role-based delegatie.
-
----
-
-*Gegenereerd op 28 juni 2026 - BSO Block Email Domains v1.7*
+*Gegenereerd op 3 juli 2026 - BSO Block Email Domains v2.0.0*
