@@ -69,16 +69,16 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Suite D - Front-end validatie
 
-- [ ] D1 Registratie met geblokkeerd domein
+- [x] D1 Registratie met geblokkeerd domein
 : E-mail `user@test-2.nl`
 : Verwacht: blokkade met duidelijke melding
-- [ ] D2 Registratie met toegestaan domein
+- [x] D2 Registratie met toegestaan domein
 : E-mail `user@example.org`
 : Verwacht: geen plugin-blokkade
-- [ ] D3 Profielupdate naar geblokkeerd domein
+- [x] D3 Profielupdate naar geblokkeerd domein
 : Admin wijzigt user e-mail naar geblokkeerd domein
 : Verwacht: blokkade met dezelfde foutmelding
-- [ ] D4 Shortcode output
+- [x] D4 Shortcode output
 : Plaats `[bso_blocked_domain_info]` op pagina
 : Verwacht: titel + uitlegtekst zichtbaar
 
@@ -96,9 +96,9 @@ Valideren dat v2 functioneel correct werkt in WordPress voor adminbeheer, regist
 
 ## Bevindingen
 
-- Open issues: geen voor Suite A t/m C
+- Open issues: geen voor Suite A t/m D
 - Opgeloste issues:
-- Rest-risico: handmatige validatie voor suites D en E nog open
+- Rest-risico: alleen Suite E (security) nog handmatig open
 
 ---
 

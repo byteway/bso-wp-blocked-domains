@@ -21,9 +21,9 @@
 - [x] Import flow werkt (incl. grote input)
 - [x] Export CSV werkt
 - [x] Undo na delete werkt
-- [ ] Registratieblokkering werkt
-- [ ] Profielupdateblokkering werkt
-- [ ] Shortcode `[bso_blocked_domain_info]` werkt
+- [x] Registratieblokkering werkt
+- [x] Profielupdateblokkering werkt
+- [x] Shortcode `[bso_blocked_domain_info]` werkt
 
 ## Security en beheer
 
